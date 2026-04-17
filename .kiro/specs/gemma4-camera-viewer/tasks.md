@@ -10,7 +10,7 @@
   - `./gradlew assembleDebug` が成功しAPKビルドが通る
   - _Requirements: なし（基盤タスク）_
 
-- [ ] 1.2 AndroidManifest.xml権限とSDKレベル設定
+- [x] 1.2 AndroidManifest.xml権限とSDKレベル設定
   - `<uses-permission android:name="android.permission.CAMERA" />` 追加
   - `<uses-permission android:name="android.permission.INTERNET" />` 追加
   - `android:hardwareAccelerated="true"` を Application に設定
