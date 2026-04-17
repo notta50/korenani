@@ -2,7 +2,7 @@
 
 ## Task 1: Foundation — プロジェクト・ビルド基盤
 
-- [ ] 1.1 Androidプロジェクト作成とbuild.gradle.kts設定
+- [x] 1.1 Androidプロジェクト作成とbuild.gradle.kts設定
   - Android Studio で Kotlin / Empty Activity プロジェクトを新規作成（minSdk=33、targetSdk=35）
   - 依存追加: Jetpack Compose BOM 2025.x、camera-core/camera2/lifecycle/view/compose 1.5.x、OkHttp 4.x、kotlinx-coroutines-android
   - `ndk { abiFilters += listOf("arm64-v8a") }` と `externalNativeBuild { cmake { path; version } }` を設定
