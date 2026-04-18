@@ -25,7 +25,7 @@
   - CMakeビルドが成功し `libllama-jni.so` が `jniLibs/arm64-v8a/` に生成される
   - _Requirements: なし（基盤タスク）_
 
-- [ ] 1.4 ModelConfig定数クラスの作成
+- [x] 1.4 ModelConfig定数クラスの作成
   - `MODEL_URL`、`MMPROJ_URL`（HTTPS必須）を定数として定義
   - `MODEL_FILENAME = "model.gguf"`、`MMPROJ_FILENAME = "mmproj.gguf"` を定義
   - `ModelConfig` オブジェクトがビルドに含まれ、URL定数が参照可能
