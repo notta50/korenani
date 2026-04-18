@@ -185,7 +185,7 @@
 
 ## Task 8: InferenceRepositoryとモデル推論フロー
 
-- [ ] 8.1 InferenceRepository初期化・解放ロジックの実装
+- [x] 8.1 InferenceRepository初期化・解放ロジックの実装
   - `initialize(modelPath, mmprojPath)` を `Dispatchers.IO` で実装: `nativeLoad → nativePrepare(nCtx=4096, nThreads) → nativeLoadMmproj`
   - `release()`: `nativeUnload()` の呼び出し
   - `nThreads = min(Runtime.getRuntime().availableProcessors(), 8)`
