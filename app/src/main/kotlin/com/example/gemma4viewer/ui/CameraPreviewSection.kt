@@ -1,8 +1,11 @@
 package com.example.gemma4viewer.ui
 
+import android.graphics.Bitmap
 import androidx.camera.compose.CameraXViewfinder
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceRequest
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -28,24 +31,33 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.example.gemma4viewer.viewmodel.AppState
 
 /**
  * 権限状態をUIメッセージに変換する純粋関数。JVMユニットテスト可能。
- * 権限なし → "設定から..." メッセージ、権限あり → null（カメラUIを表示）
  */
 fun resolveCameraPermissionMessage(hasPermission: Boolean): String? =
     if (!hasPermission) "カメラ権限が必要です。設定からカメラ権限を許可してください。" else null
 
 /**
+ * AppState から撮影ボタンの有効/無効を決める純粋関数。JVMユニットテスト可能。
+ * 推論中（Inferencing）はボタンを無効にして多重撮影を防ぐ。
+ */
+fun resolveIsCaptureEnabled(appState: AppState): Boolean =
+    appState !is AppState.Inferencing
+
+/**
  * カメラプレビューと撮影ボタンを表示するComposable。
  *
  * - hasCameraPermission=false: 権限拒否時の説明UIと権限要求ボタンを表示
- * - hasCameraPermission=true: CameraXリアルタイムプレビュー（Task 7.2）
+ * - hasCameraPermission=true: CameraXリアルタイムプレビュー + 撮影ボタン
  */
 @Composable
 fun CameraPreviewSection(
     hasCameraPermission: Boolean,
     onRequestPermission: () -> Unit,
+    appState: AppState,
+    onCapture: (Bitmap) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val deniedMessage = resolveCameraPermissionMessage(hasCameraPermission)
@@ -72,12 +84,20 @@ fun CameraPreviewSection(
             }
         }
     } else {
-        CameraXPreviewContent(modifier = modifier)
+        CameraXPreviewContent(
+            appState = appState,
+            onCapture = onCapture,
+            modifier = modifier,
+        )
     }
 }
 
 @Composable
-internal fun CameraXPreviewContent(modifier: Modifier = Modifier) {
+internal fun CameraXPreviewContent(
+    appState: AppState,
+    onCapture: (Bitmap) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val surfaceRequest = remember { mutableStateOf<SurfaceRequest?>(null) }
@@ -118,6 +138,31 @@ internal fun CameraXPreviewContent(modifier: Modifier = Modifier) {
                 surfaceRequest = req,
                 modifier = Modifier.fillMaxSize(),
             )
+        }
+
+        Button(
+            onClick = {
+                imageCapture.takePicture(
+                    ContextCompat.getMainExecutor(context),
+                    object : ImageCapture.OnImageCapturedCallback() {
+                        override fun onCaptureSuccess(imageProxy: ImageProxy) {
+                            val bitmap: Bitmap = imageProxy.toBitmap()
+                            imageProxy.close()
+                            onCapture(bitmap)
+                        }
+
+                        override fun onError(exception: ImageCaptureException) {
+                            // 撮影エラーは無視（再撮影可能）
+                        }
+                    }
+                )
+            },
+            enabled = resolveIsCaptureEnabled(appState),
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 16.dp),
+        ) {
+            Text(text = "撮影")
         }
     }
 }

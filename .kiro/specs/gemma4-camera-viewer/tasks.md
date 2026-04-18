@@ -172,7 +172,7 @@
   - _Requirements: 1.2, 2.1_
   - _Boundary: CameraPreviewSection_
 
-- [ ] 7.3 撮影・Bitmap取得・ViewModelコールバックの実装
+- [x] 7.3 撮影・Bitmap取得・ViewModelコールバックの実装
   - `imageCapture.takePicture(executor, OnImageCapturedCallback)` で撮影
   - コールバック内で `imageProxy.toBitmap()` 後に必ず `imageProxy.close()` を呼び出す
   - 撮影完了で `mainViewModel.onCapture(bitmap)` を呼び出し

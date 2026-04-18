@@ -83,6 +83,7 @@ fun MainScreen(
                 appState = appState,
                 hasCameraPermission = hasCameraPermission,
                 onRequestCameraPermission = onRequestCameraPermission,
+                onCapture = viewModel::onCapture,
                 modifier = modifier,
             )
     }
@@ -179,6 +180,7 @@ private fun SplitContent(
     appState: AppState,
     hasCameraPermission: Boolean,
     onRequestCameraPermission: () -> Unit,
+    onCapture: (android.graphics.Bitmap) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -186,6 +188,8 @@ private fun SplitContent(
             CameraPreviewSection(
                 hasCameraPermission = hasCameraPermission,
                 onRequestPermission = onRequestCameraPermission,
+                appState = appState,
+                onCapture = onCapture,
             )
         }
         Box(modifier = Modifier.weight(0.5f)) {
