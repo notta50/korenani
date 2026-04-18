@@ -125,7 +125,7 @@
 
 ## Task 6: Gemma 4マルチモーダルJNI拡張
 
-- [ ] 6.1 ImageUtils Bitmap→RGBバイト変換の実装
+- [x] 6.1 ImageUtils Bitmap→RGBバイト変換の実装
   - `Bitmap.toRgbByteArray(): ByteArray` 拡張関数を実装（R/G/B各1バイト、`width * height * 3` バイト）
   - 赤単色Bitmapを入力すると `[255, 0, 0, 255, 0, 0, ...]` パターンのバイト列が生成される
   - _Requirements: 4.1_
