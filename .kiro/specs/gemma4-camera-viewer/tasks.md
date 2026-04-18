@@ -96,7 +96,7 @@
 
 ## Task 5 (P): llama.cpp JNIブリッジ基盤（テキストモデル）
 
-- [ ] 5.1 LlamaEngine KotlinクラスとJNI宣言の実装
+- [x] 5.1 LlamaEngine KotlinクラスとJNI宣言の実装
   - `companion object { init { System.loadLibrary("llama-jni") } }` を実装
   - テキストモデル宣言: `nativeLoad(modelPath: String): Int`、`nativePrepare(nCtx: Int, nThreads: Int): Int`、`nativeSystemInfo(): String`、`nativeGenerateNextToken(): String`、`nativeUnload()`
   - マルチモーダル宣言: `nativeLoadMmproj(mmprojPath: String): Int`、`nativeProcessImageTurn(rgbBytes: ByteArray, width: Int, height: Int, prompt: String): Int`
