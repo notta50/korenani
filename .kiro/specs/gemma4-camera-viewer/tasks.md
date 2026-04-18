@@ -104,7 +104,7 @@
   - _Requirements: 4.1, 4.4_
   - _Boundary: LlamaEngine_
 
-- [ ] 5.2 llama_jni.cpp テキストモデル初期化・クリーンアップ・システム情報の実装
+- [x] 5.2 llama_jni.cpp テキストモデル初期化・クリーンアップ・システム情報の実装
   - グローバル変数: `g_model`（llama_model*）、`g_ctx`（llama_context*）、`g_sampler`（llama_sampler*）、`g_batch` を定義
   - `nativeLoad`: `llama_model_load_from_file()` でGGUFロード
   - `nativePrepare`: `llama_new_context_with_model()` でコンテキスト作成（`n_ctx`指定）、サンプラー設定
