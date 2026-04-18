@@ -83,7 +83,7 @@
   - _Requirements: 3.4, 5.1_
   - _Boundary: ModelRepository_
 
-- [ ] 4.2 OkHttpレジューム対応ダウンロードとFlow<DownloadState>の実装
+- [x] 4.2 OkHttpレジューム対応ダウンロードとFlow<DownloadState>の実装
   - `Range: bytes=N-` ヘッダーと `FileOutputStream(file, true)` のappend modeでレジューム実装
   - `model.gguf` → `mmproj.gguf` の順次ダウンロード（`label` で区別）
   - `Flow<DownloadState>` で `Progress(percent, label)` / `Finished` / `Failed(error)` を通知
