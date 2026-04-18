@@ -217,7 +217,7 @@
   - _Boundary: MainViewModel_
   - _Depends: 2, 4_
 
-- [ ] 9.2 撮影→推論→テキスト表示の全フロー統合
+- [x] 9.2 撮影→推論→テキスト表示の全フロー統合
   - `onCapture(bitmap)`: `AppState.Inferencing` セット → `inferenceRepo.infer()` をcollect → 各トークンで `AppState.InferenceResult(text)` 更新 → 完了後 `AppState.ModelReady`
   - CameraPreviewSectionの撮影ボタンが推論中に無効化されることを統合確認
   - 撮影ボタン押下から日本語テキスト表示まで動作し、完了後にボタンが再有効化される
@@ -225,7 +225,7 @@
   - _Boundary: MainViewModel_
   - _Depends: 7, 8_
 
-- [ ] 9.3 ダウンロード失敗・再試行UIの統合
+- [x] 9.3 ダウンロード失敗・再試行UIの統合
   - `onStartDownload()` 内で `DownloadState.Failed` 受信時に `AppState.DownloadFailed(error)` へ遷移
   - MainScreenの `AppState.DownloadFailed` 時にエラーメッセージと再試行ボタンを表示
   - 再試行ボタン押下で `onRetryDownload()` が呼ばれダウンロードが再開する
@@ -233,7 +233,7 @@
   - _Requirements: 3.5_
   - _Boundary: MainViewModel, MainScreen_
 
-- [ ] 9.4 推論エラーと権限拒否のエラーUI統合
+- [x] 9.4 推論エラーと権限拒否のエラーUI統合
   - `onCapture()` 内でJNIエラー発生時に `AppState.InferenceError(message)` へ遷移し、ResultSectionにエラーメッセージを表示
   - カメラ権限拒否時の説明ダイアログと設定画面誘導をMainActivityに統合
   - 撮影失敗（ImageCaptureException）時のToastメッセージ表示

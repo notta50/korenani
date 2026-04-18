@@ -115,4 +115,5 @@ class MainViewModelIntegrationTest {
         advanceUntilIdle()
         assertEquals(AppState.ModelReady, vm.appState.value)
     }
+
 }

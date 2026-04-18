@@ -4,15 +4,23 @@ import android.graphics.Bitmap
 import com.example.gemma4viewer.repository.DownloadState
 import com.example.gemma4viewer.repository.InferenceRepository
 import com.example.gemma4viewer.repository.ModelRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.setMain
+import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class MainViewModelTest {
 
+    private val testDispatcher = StandardTestDispatcher()
     private lateinit var viewModel: MainViewModel
 
     private val fakeModelRepo = object : ModelRepository {
@@ -31,7 +39,13 @@ class MainViewModelTest {
 
     @Before
     fun setUp() {
+        Dispatchers.setMain(testDispatcher)
         viewModel = MainViewModel(fakeModelRepo, fakeInferenceRepo)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
     }
 
     @Test
@@ -70,13 +84,5 @@ class MainViewModelTest {
         )
         assertEquals("onCapture", method.name)
         assertEquals(Bitmap::class.java, method.parameterTypes[0])
-    }
-
-    @Test
-    fun appState_remainsDownloadRequired_afterStubMethodCalls() {
-        viewModel.onAppStart()
-        viewModel.onStartDownload()
-        viewModel.onRetryDownload()
-        assertEquals(AppState.DownloadRequired, viewModel.appState.value)
     }
 }
