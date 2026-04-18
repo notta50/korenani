@@ -24,48 +24,37 @@ class ModelRepositoryImplTest {
         repo = ModelRepositoryImpl(filesDir)
     }
 
-    // ケース1: 両ファイル存在 → isModelReady() == true
+    // ケース1: .litertlm ファイルが存在しない → isModelReady() == false
     @Test
-    fun isModelReady_bothFilesExist_returnsTrue() {
-        File(filesDir, ModelConfig.MODEL_FILENAME).createNewFile()
-        File(filesDir, ModelConfig.MMPROJ_FILENAME).createNewFile()
+    fun isModelReady_fileAbsent_returnsFalse() {
+        assertFalse(repo.isModelReady())
+    }
 
+    // ケース2: .litertlm ファイルが存在するが size=0 → isModelReady() == false
+    @Test
+    fun isModelReady_fileExistsButEmpty_returnsFalse() {
+        File(filesDir, ModelConfig.MODEL_FILENAME).createNewFile()
+        // createNewFile() creates an empty file (length() == 0)
+        assertFalse(repo.isModelReady())
+    }
+
+    // ケース3: .litertlm ファイルが存在し size>0 → isModelReady() == true
+    @Test
+    fun isModelReady_fileExistsWithContent_returnsTrue() {
+        File(filesDir, ModelConfig.MODEL_FILENAME).writeBytes(ByteArray(1) { 0x00 })
         assertTrue(repo.isModelReady())
     }
 
-    // ケース2: model.gguf 欠損 → isModelReady() == false
-    @Test
-    fun isModelReady_modelFileMissing_returnsFalse() {
-        File(filesDir, ModelConfig.MMPROJ_FILENAME).createNewFile()
-
-        assertFalse(repo.isModelReady())
-    }
-
-    // ケース3: mmproj.gguf 欠損 → isModelReady() == false
-    @Test
-    fun isModelReady_mmprojFileMissing_returnsFalse() {
-        File(filesDir, ModelConfig.MODEL_FILENAME).createNewFile()
-
-        assertFalse(repo.isModelReady())
-    }
-
-    // ケース4: 両ファイル欠損 → isModelReady() == false
-    @Test
-    fun isModelReady_bothFilesMissing_returnsFalse() {
-        assertFalse(repo.isModelReady())
-    }
-
-    // ケース5: getModelPath() が filesDir/model.gguf の絶対パスを返す
+    // ケース4: getModelPath() が filesDir/MODEL_FILENAME の絶対パスを返す
     @Test
     fun getModelPath_returnsAbsolutePathUnderFilesDir() {
         val expected = File(filesDir, ModelConfig.MODEL_FILENAME).absolutePath
         assertEquals(expected, repo.getModelPath())
     }
 
-    // ケース6: getMmprojPath() が filesDir/mmproj.gguf の絶対パスを返す
+    // ケース5: getMmprojPath() が空文字を返す（LiteRT-LM は単一ファイルで完結）
     @Test
-    fun getMmprojPath_returnsAbsolutePathUnderFilesDir() {
-        val expected = File(filesDir, ModelConfig.MMPROJ_FILENAME).absolutePath
-        assertEquals(expected, repo.getMmprojPath())
+    fun getMmprojPath_returnsEmptyString() {
+        assertEquals("", repo.getMmprojPath())
     }
 }

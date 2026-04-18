@@ -15,7 +15,6 @@ import java.util.concurrent.TimeUnit
 class ModelRepositoryImpl(
     private val filesDir: File,
     private val modelUrl: String = ModelConfig.MODEL_URL,
-    private val mmprojUrl: String = ModelConfig.MMPROJ_URL,
     private val httpClient: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(10, TimeUnit.MINUTES)
@@ -28,30 +27,16 @@ class ModelRepositoryImpl(
 
     override fun isModelReady(): Boolean {
         val modelFile = File(filesDir, ModelConfig.MODEL_FILENAME)
-        val mmprojFile = File(filesDir, ModelConfig.MMPROJ_FILENAME)
-        return modelFile.exists() && mmprojFile.exists()
+        return modelFile.exists() && modelFile.length() > 0
     }
 
     override fun downloadModels(): Flow<DownloadState> = flow {
-        // model.gguf を先にダウンロード
+        // .litertlm ファイル 1 件のみダウンロード（LiteRT-LM は単一ファイルで完結）
         var failed = false
         downloadFile(
             url = modelUrl,
             file = File(filesDir, ModelConfig.MODEL_FILENAME),
             label = "モデルファイル"
-        ).collect { state ->
-            emit(state)
-            if (state is DownloadState.Failed) {
-                failed = true
-            }
-        }
-        if (failed) return@flow
-
-        // mmproj.gguf をダウンロード
-        downloadFile(
-            url = mmprojUrl,
-            file = File(filesDir, ModelConfig.MMPROJ_FILENAME),
-            label = "mmprojファイル"
         ).collect { state ->
             emit(state)
             if (state is DownloadState.Failed) {
@@ -157,6 +142,6 @@ class ModelRepositoryImpl(
     }
 
     override fun getMmprojPath(): String {
-        return File(filesDir, ModelConfig.MMPROJ_FILENAME).absolutePath
+        return ""  // LiteRT-LM は単一ファイルで完結するため mmproj は不要
     }
 }
