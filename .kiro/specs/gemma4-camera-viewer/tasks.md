@@ -53,7 +53,7 @@
 
 ## Task 3 (P): UI基盤 — 分割レイアウト
 
-- [ ] 3.1 MainScreen上下分割レイアウトの実装
+- [x] 3.1 MainScreen上下分割レイアウトの実装
   - `Column` + `Modifier.weight(0.5f)` で画面を上下均等（50:50）に分割
   - 上半分は `CameraPreviewSection` のスロット（プレースホルダComposable）として定義
   - `AppState.DownloadRequired` / `Downloading` / `DownloadFailed` 時に全面ダウンロードUI（進捗バー・再試行ボタン）を表示
