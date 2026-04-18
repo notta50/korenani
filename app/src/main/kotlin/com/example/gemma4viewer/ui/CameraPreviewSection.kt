@@ -1,6 +1,10 @@
 package com.example.gemma4viewer.ui
 
 import android.graphics.Bitmap
+import android.graphics.Matrix
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.camera.compose.CameraXViewfinder
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -18,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,6 +62,7 @@ fun CameraPreviewSection(
     hasCameraPermission: Boolean,
     onRequestPermission: () -> Unit,
     appState: AppState,
+    capturedBitmap: Bitmap?,
     onCapture: (Bitmap) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -82,6 +88,19 @@ fun CameraPreviewSection(
                     Text(text = "権限を許可する")
                 }
             }
+        }
+    } else if (capturedBitmap != null && appState is AppState.Inferencing) {
+        // 推論中は撮影した静止画を表示
+        Box(modifier = modifier.fillMaxSize()) {
+            Image(
+                bitmap = capturedBitmap.asImageBitmap(),
+                contentDescription = "解析中の画像",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.fillMaxSize(),
+            )
+            CircularProgressIndicator(
+                modifier = Modifier.align(Alignment.Center),
+            )
         }
     } else {
         CameraXPreviewContent(
@@ -146,8 +165,13 @@ internal fun CameraXPreviewContent(
                     ContextCompat.getMainExecutor(context),
                     object : ImageCapture.OnImageCapturedCallback() {
                         override fun onCaptureSuccess(imageProxy: ImageProxy) {
-                            val bitmap: Bitmap = imageProxy.toBitmap()
+                            val rotation = imageProxy.imageInfo.rotationDegrees
+                            val raw: Bitmap = imageProxy.toBitmap()
                             imageProxy.close()
+                            val bitmap = if (rotation != 0) {
+                                val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
+                                Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, matrix, true)
+                            } else raw
                             onCapture(bitmap)
                         }
 

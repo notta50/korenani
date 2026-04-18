@@ -16,6 +16,11 @@ class LlamaEngine {
         }
     }
 
+    // バックエンド初期化（nativeLoad より先に呼ぶ）
+
+    /** ggml バックエンド .so をネイティブライブラリディレクトリからロードし、バックエンドを初期化する */
+    external fun nativeInitBackend(nativeLibDir: String)
+
     // テキストモデル初期化
 
     /** モデルファイルをロードする。戻り値: 0=OK, 1=失敗 */

@@ -1,6 +1,7 @@
 #include <jni.h>
 #include <string>
 #include <android/log.h>
+#include <chrono>
 #include "llama.h"
 #include "mtmd.h"
 #include "mtmd-helper.h"
@@ -14,8 +15,35 @@ static llama_context* g_ctx      = nullptr;
 static llama_sampler* g_sampler  = nullptr;
 static llama_batch    g_batch    = {};
 static mtmd_context*  g_mtmd_ctx = nullptr;
+static int            g_token_count  = 0;
+static int64_t        g_gen_start_ms = 0;
+
+static int64_t now_ms() {
+    using namespace std::chrono;
+    return duration_cast<milliseconds>(steady_clock::now().time_since_epoch()).count();
+}
+
+static void llama_log_callback(ggml_log_level level, const char* text, void* /*user_data*/) {
+    switch (level) {
+        case GGML_LOG_LEVEL_ERROR: LOGE("[llama] %s", text); break;
+        case GGML_LOG_LEVEL_WARN:  LOGI("[llama-warn] %s", text); break;
+        default:                   LOGI("[llama] %s", text); break;
+    }
+}
 
 extern "C" {
+
+// ---------------------------------------------------------------------------
+// nativeInitBackend — ggmlバックエンドをネイティブライブラリディレクトリからロード
+// nativeLoad より先に呼ぶこと
+// ---------------------------------------------------------------------------
+JNIEXPORT void JNICALL
+Java_com_example_gemma4viewer_engine_LlamaEngine_nativeInitBackend(
+        JNIEnv* env, jobject /* thiz */, jstring /* nativeLibDir */) {
+    llama_log_set(llama_log_callback, nullptr);
+    llama_backend_init();
+    LOGI("nativeInitBackend: done (static backends)");
+}
 
 // ---------------------------------------------------------------------------
 // nativeLoad — GGUFモデルをファイルパスからロードする
@@ -30,6 +58,21 @@ Java_com_example_gemma4viewer_engine_LlamaEngine_nativeLoad(
         return 1;
     }
     LOGI("nativeLoad: loading model from %s", path);
+
+    // ファイルサイズ確認（ゼロや小さすぎる場合はファイル破損）
+    FILE* f = fopen(path, "rb");
+    if (f) {
+        fseek(f, 0, SEEK_END);
+        long sz = ftell(f);
+        fclose(f);
+        LOGI("nativeLoad: model file size = %ld bytes (%.1f MB)", sz, sz / 1048576.0f);
+        if (sz < 100 * 1024 * 1024) {
+            LOGE("nativeLoad: model file too small (%ld bytes) — possibly corrupted", sz);
+            env->ReleaseStringUTFChars(modelPath, path);
+            return 1;
+        }
+    }
+
     llama_model_params params = llama_model_default_params();
     g_model = llama_model_load_from_file(path, params);
     env->ReleaseStringUTFChars(modelPath, path);
@@ -164,9 +207,13 @@ Java_com_example_gemma4viewer_engine_LlamaEngine_nativeProcessImageTurn(
         LOGE("nativeProcessImageTurn: uninitialized state");
         return 1;
     }
+    g_token_count = 0;
+    int64_t t_start = now_ms();
+    LOGI("nativeProcessImageTurn: START image=%dx%d", (int)width, (int)height);
 
     // 会話履歴を保持しないため毎回KVキャッシュをクリアする
     llama_memory_clear(llama_get_memory(g_ctx), false);
+    LOGI("nativeProcessImageTurn: KV cache cleared (+%lldms)", (long long)(now_ms()-t_start));
 
     // JNIバイト配列をCポインタに変換
     jbyte* rgb_data = env->GetByteArrayElements(rgbBytes, nullptr);
@@ -216,12 +263,14 @@ Java_com_example_gemma4viewer_engine_LlamaEngine_nativeProcessImageTurn(
         LOGE("nativeProcessImageTurn: mtmd_tokenize failed (ret=%d)", ret);
         return 1;
     }
+    LOGI("nativeProcessImageTurn: tokenize done (+%lldms)", (long long)(now_ms()-t_start));
 
     // mtmd_helper_eval_chunksがM-RoPEを含む全チャンク処理を自動で行う
+    LOGI("nativeProcessImageTurn: eval_chunks START (image encoding + prefill — 数十秒かかる場合あり)");
     llama_pos new_n_past = 0;
     ret = mtmd_helper_eval_chunks(
         g_mtmd_ctx, g_ctx, chunks,
-        /*n_past=*/0, /*seq_id=*/0, /*n_batch=*/512, /*logits_last=*/true,
+        /*n_past=*/0, /*seq_id=*/0, /*n_batch=*/2048, /*logits_last=*/true,
         &new_n_past
     );
     mtmd_input_chunks_free(chunks);
@@ -231,7 +280,7 @@ Java_com_example_gemma4viewer_engine_LlamaEngine_nativeProcessImageTurn(
         return 1;
     }
 
-    LOGI("nativeProcessImageTurn: done, new_n_past=%d", (int)new_n_past);
+    LOGI("nativeProcessImageTurn: DONE new_n_past=%d total=%lldms", (int)new_n_past, (long long)(now_ms()-t_start));
     return 0;
 }
 
@@ -244,13 +293,21 @@ Java_com_example_gemma4viewer_engine_LlamaEngine_nativeGenerateNextToken(
         return env->NewStringUTF("");
     }
 
+    if (g_token_count == 0) {
+        g_gen_start_ms = now_ms();
+        LOGI("nativeGenerateNextToken: generation START");
+    }
+
     // サンプリング: バッチの最後のlogits位置から次トークンを選択
     llama_token token = llama_sampler_sample(g_sampler, g_ctx, -1);
 
     // EOGトークン（EOS/EOT）検出時は空文字を返す
     const llama_vocab* vocab = llama_model_get_vocab(g_model);
     if (llama_vocab_is_eog(vocab, token)) {
-        LOGI("nativeGenerateNextToken: EOG token detected, stopping generation");
+        int64_t elapsed = now_ms() - g_gen_start_ms;
+        float tps = g_token_count > 0 ? g_token_count * 1000.0f / elapsed : 0;
+        LOGI("nativeGenerateNextToken: EOG — %d tokens in %lldms (%.1f tok/s)", g_token_count, (long long)elapsed, tps);
+        g_token_count = 0;
         return env->NewStringUTF("");
     }
 
@@ -272,6 +329,14 @@ Java_com_example_gemma4viewer_engine_LlamaEngine_nativeGenerateNextToken(
         return env->NewStringUTF("");
     }
     buf[n] = '\0';
+
+    g_token_count++;
+    if (g_token_count % 10 == 0) {
+        int64_t elapsed = now_ms() - g_gen_start_ms;
+        float tps = g_token_count * 1000.0f / elapsed;
+        LOGI("nativeGenerateNextToken: token #%d (%.1f tok/s) last=\"%s\"", g_token_count, tps, buf);
+    }
+
     return env->NewStringUTF(buf);
 }
 

@@ -32,13 +32,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val modelRepo = ModelRepositoryImpl(filesDir)
-        val inferenceRepo = InferenceRepositoryImpl()
+        val inferenceRepo = InferenceRepositoryImpl(applicationInfo.nativeLibraryDir)
         val vmFactory = MainViewModel.Factory(modelRepo, inferenceRepo)
 
         setContent {
             Gemma4CameraViewerTheme {
                 val vm = ViewModelProvider(this, vmFactory)[MainViewModel::class.java]
                 val appState by vm.appState.collectAsState()
+                val capturedBitmap by vm.capturedBitmap.collectAsState()
 
                 var hasCameraPermission by remember {
                     mutableStateOf(
@@ -64,6 +65,7 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     MainScreen(
                         appState = appState,
+                        capturedBitmap = capturedBitmap,
                         viewModel = vm,
                         hasCameraPermission = hasCameraPermission,
                         onRequestCameraPermission = {

@@ -1,6 +1,7 @@
 package com.example.gemma4viewer.viewmodel
 
 import android.graphics.Bitmap
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -21,6 +22,9 @@ class MainViewModel(
         MutableStateFlow(AppState.DownloadRequired)
 
     val appState: StateFlow<AppState> = _appState.asStateFlow()
+
+    private val _capturedBitmap = MutableStateFlow<Bitmap?>(null)
+    val capturedBitmap: StateFlow<Bitmap?> = _capturedBitmap.asStateFlow()
 
     fun onAppStart() {
         viewModelScope.launch {
@@ -46,6 +50,7 @@ class MainViewModel(
 
     fun onCapture(bitmap: Bitmap) {
         viewModelScope.launch {
+            _capturedBitmap.value = bitmap
             _appState.value = AppState.Inferencing
             try {
                 var accumulatedText = ""
@@ -56,29 +61,40 @@ class MainViewModel(
                 _appState.value = AppState.ModelReady
             } catch (e: Exception) {
                 _appState.value = AppState.InferenceError(e.message ?: "推論エラーが発生しました。")
+            } finally {
+                _capturedBitmap.value = null
             }
         }
     }
 
     private suspend fun runDownloadAndLoad() {
-        modelRepo.downloadModels().collect { state ->
-            when (state) {
-                is DownloadState.Progress -> {
-                    _appState.value = AppState.Downloading(
-                        progress = state.percent,
-                        label = state.label
-                    )
-                }
-                is DownloadState.Finished -> {
-                    loadModel()
-                }
-                is DownloadState.Failed -> {
-                    _appState.value = AppState.DownloadFailed(
-                        state.error.message ?: "ダウンロードに失敗しました"
-                    )
+        Log.d(TAG, "runDownloadAndLoad: 開始")
+        try {
+            modelRepo.downloadModels().collect { state ->
+                when (state) {
+                    is DownloadState.Progress -> {
+                        _appState.value = AppState.Downloading(
+                            progress = state.percent,
+                            label = state.label
+                        )
+                    }
+                    is DownloadState.Finished -> {
+                        Log.i(TAG, "runDownloadAndLoad: ダウンロード完了 → モデルロード開始")
+                        loadModel()
+                    }
+                    is DownloadState.Failed -> {
+                        Log.e(TAG, "runDownloadAndLoad: DownloadFailed: ${state.error.message}", state.error)
+                        _appState.value = AppState.DownloadFailed(
+                            state.error.message ?: "ダウンロードに失敗しました"
+                        )
+                    }
                 }
             }
+        } catch (e: Exception) {
+            Log.e(TAG, "runDownloadAndLoad: 予期しない例外: ${e.javaClass.simpleName}: ${e.message}", e)
+            _appState.value = AppState.DownloadFailed(e.message ?: "ダウンロードに失敗しました")
         }
+        Log.d(TAG, "runDownloadAndLoad: 終了")
     }
 
     private suspend fun loadModel() {
@@ -105,6 +121,7 @@ class MainViewModel(
     }
 
     companion object {
+        private const val TAG = "MainViewModel"
         private const val DEFAULT_PROMPT =
             "この画像に写っているものを日本語で詳しく説明してください。"
     }

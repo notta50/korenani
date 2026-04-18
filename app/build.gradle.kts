@@ -26,8 +26,6 @@ android {
                 arguments(
                     "-DBUILD_SHARED_LIBS=ON",
                     "-DLLAMA_BUILD_COMMON=ON",
-                    "-DGGML_BACKEND_DL=ON",
-                    "-DGGML_CPU_ALL_VARIANTS=ON",
                     "-DGGML_OPENMP=OFF",
                     "-DLLAMA_BUILD_TESTS=OFF",
                     "-DLLAMA_BUILD_EXAMPLES=OFF"
