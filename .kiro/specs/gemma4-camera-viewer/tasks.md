@@ -245,13 +245,13 @@
 
 ## Task 10: テストと検証
 
-- [ ] 10.1 ModelRepositoryユニットテスト
+- [x] 10.1 ModelRepositoryユニットテスト
   - MockWebServerを使った正常ダウンロード完了・ネットワーク失敗・Range再開のテスト
   - `isModelReady()` の両ファイル存在/片方欠損/両方欠損の3ケーステスト
   - テスト3ケース以上がすべてパスする
   - _Requirements: 3.1, 3.2, 3.3, 3.4, 3.5_
 
-- [ ] 10.2 MainViewModel AppState遷移ユニットテスト
+- [x] 10.2 MainViewModel AppState遷移ユニットテスト
   - `DownloadRequired → Downloading → ModelLoading → ModelReady` の遷移テスト
   - `ModelReady → Inferencing → InferenceResult → ModelReady` の遷移テスト
   - Turbineライブラリを使ったFlow検証テストがすべてパスする
@@ -268,3 +268,14 @@
   - 既知ピクセル値（赤単色、緑単色）を持つBitmapから期待するRGBバイト列を検証
   - 変換結果が期待バイト列と完全一致する
   - _Requirements: 4.1_
+
+---
+
+## Implementation Notes
+
+- JVM単体テストでBitmapインスタンスが必要な場合は `Mockito.mock(Bitmap::class.java)` を使用（`isReturnDefaultValues=true`だけでは`Bitmap.createBitmap()`がnullを返しNPEになる）
+- `viewModelScope.launch`使用のViewModelをJVM単体テストで動かすには`Dispatchers.setMain(StandardTestDispatcher())`が必須
+- `DownloadState.Failed.error`はThrowable型（Stringではない）— `state.error.message ?: "..."` でメッセージ取得
+- Turbine 1.2.0はkotlinx-coroutines 1.9.0と互換性あり; `cancelAndIgnoreRemainingEvents()`でテスト終了後のemissionを安全に無視できる
+- mtmd APIの`image_min_tokens = 0`はGemma 4のクラッシュ回避に必須（ゼロに設定しないとnativeLoadMmprojが失敗）
+- `llama_memory_clear(llama_get_memory(g_ctx), false)` — KVキャッシュクリアの現行API（`llama_kv_self_clear`は存在しない）
