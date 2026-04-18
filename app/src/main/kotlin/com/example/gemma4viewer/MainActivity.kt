@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
+import com.example.gemma4viewer.engine.LiteRtLmEngine
 import com.example.gemma4viewer.repository.InferenceRepositoryImpl
 import com.example.gemma4viewer.repository.ModelRepositoryImpl
 import com.example.gemma4viewer.ui.MainScreen
@@ -32,7 +33,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val modelRepo = ModelRepositoryImpl(filesDir)
-        val inferenceRepo = InferenceRepositoryImpl(applicationInfo.nativeLibraryDir)
+        val inferenceRepo = InferenceRepositoryImpl(engine = LiteRtLmEngine(), cacheDir = cacheDir)
         val vmFactory = MainViewModel.Factory(modelRepo, inferenceRepo)
 
         setContent {

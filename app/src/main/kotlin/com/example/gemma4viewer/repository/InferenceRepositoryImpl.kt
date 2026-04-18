@@ -1,67 +1,54 @@
 package com.example.gemma4viewer.repository
 
 import android.graphics.Bitmap
-import com.example.gemma4viewer.engine.LlamaEngine
-import com.example.gemma4viewer.util.ImageUtils.toRgbByteArray
+import com.example.gemma4viewer.engine.LiteRtLmEngine
+import java.io.File
+import java.io.FileOutputStream
 import kotlin.math.min
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.withContext
 
-internal fun computeNThreads(): Int =
-    min(Runtime.getRuntime().availableProcessors(), 8)
-
-/**
- * Gemma 4マルチモーダルプロンプトテンプレートを構築する純粋関数。
- * mediaMarkerはmtmd_default_marker()が返す文字列（例: "<__media__>"）を渡す。
- */
-internal fun buildGemma4Prompt(userText: String, mediaMarker: String): String =
-    "<start_of_turn>user\n$mediaMarker\n$userText<end_of_turn>\n<start_of_turn>model\n"
-
-class InferenceRepositoryImpl(
-    private val nativeLibDir: String,
-    private val engine: LlamaEngine = LlamaEngine()
+open class InferenceRepositoryImpl(
+    private val engine: LiteRtLmEngine,
+    private val cacheDir: File
 ) : InferenceRepository {
 
-    override suspend fun initialize(modelPath: String, mmprojPath: String) =
-        withContext(Dispatchers.IO) {
-            engine.nativeInitBackend(nativeLibDir)
-            val nThreads = computeNThreads()
-            if (engine.nativeLoad(modelPath) != 0) {
-                error("nativeLoad failed: $modelPath")
-            }
-            if (engine.nativePrepare(nCtx = 1024, nThreads = nThreads) != 0) {
-                error("nativePrepare failed")
-            }
-            if (engine.nativeLoadMmproj(mmprojPath) != 0) {
-                error("nativeLoadMmproj failed: $mmprojPath")
-            }
-        }
+    override suspend fun initialize(modelPath: String, mmprojPath: String) {
+        // mmprojPath は LiteRT-LM では使用しない（要件 5.3）
+        engine.initialize(modelPath)
+    }
 
     override fun infer(bitmap: Bitmap, prompt: String): Flow<String> = flow {
-        val scaled = bitmap.scaleToMax(MAX_IMAGE_SIZE)
-        val rgb = with(com.example.gemma4viewer.util.ImageUtils) { scaled.toRgbByteArray() }
-        val fullPrompt = buildGemma4Prompt(prompt, MEDIA_MARKER)
-
-        if (engine.nativeProcessImageTurn(rgb, scaled.width, scaled.height, fullPrompt) != 0) {
-            error("nativeProcessImageTurn failed")
-        }
-
-        while (true) {
-            val token = engine.nativeGenerateNextToken()
-            if (token.isEmpty()) break
-            emit(token)
+        val tempFile = createAndWriteTempFile(bitmap)
+        try {
+            engine.infer(tempFile.absolutePath, prompt).collect { token ->
+                emit(token)
+            }
+        } finally {
+            tempFile.delete()
         }
     }.flowOn(Dispatchers.IO)
 
-    override suspend fun release() = withContext(Dispatchers.IO) {
-        engine.nativeUnload()
+    override suspend fun release() {
+        engine.release()
+    }
+
+    /**
+     * Bitmap を最大 [MAX_IMAGE_SIZE]px にリサイズし JPEG 一時ファイルとして [cacheDir] に保存する。
+     * テストでオーバーライド可能（open）。
+     */
+    open fun createAndWriteTempFile(bitmap: Bitmap): File {
+        val scaled = bitmap.scaleToMax(MAX_IMAGE_SIZE)
+        val tempFile = File.createTempFile("infer_", ".jpg", cacheDir)
+        FileOutputStream(tempFile).use { fos ->
+            scaled.compress(Bitmap.CompressFormat.JPEG, 90, fos)
+        }
+        return tempFile
     }
 
     companion object {
-        private const val MEDIA_MARKER = "<__media__>"
         private const val MAX_IMAGE_SIZE = 336
 
         private fun Bitmap.scaleToMax(maxPx: Int): Bitmap {
