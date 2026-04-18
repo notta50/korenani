@@ -9,42 +9,52 @@ class ModelConfigTest {
     @Test
     fun modelUrlStartsWithHttps() {
         assertTrue(
-            "MODEL_URL must start with https://",
+            "MODEL_URL は https:// で始まらなければならない",
             ModelConfig.MODEL_URL.startsWith("https://")
         )
     }
 
     @Test
-    fun mmprojUrlStartsWithHttps() {
+    fun modelUrlHasLitertlmExtension() {
         assertTrue(
-            "MMPROJ_URL must start with https://",
-            ModelConfig.MMPROJ_URL.startsWith("https://")
+            "MODEL_URL は .litertlm で終わらなければならない",
+            ModelConfig.MODEL_URL.endsWith(".litertlm")
         )
     }
 
     @Test
-    fun modelUrlDoesNotContainHttp() {
-        assertTrue(
-            "MODEL_URL must not contain http://",
-            !ModelConfig.MODEL_URL.contains("http://")
+    fun modelUrlIsGemma4E2BLitertlm() {
+        assertEquals(
+            "MODEL_URL は Gemma 4 E2B .litertlm の HuggingFace URL でなければならない",
+            "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
+            ModelConfig.MODEL_URL
         )
     }
 
     @Test
-    fun mmprojUrlDoesNotContainHttp() {
-        assertTrue(
-            "MMPROJ_URL must not contain http://",
-            !ModelConfig.MMPROJ_URL.contains("http://")
+    fun modelFilenameIsLitertlm() {
+        assertEquals(
+            "MODEL_FILENAME は gemma-4-E2B-it.litertlm でなければならない",
+            "gemma-4-E2B-it.litertlm",
+            ModelConfig.MODEL_FILENAME
         )
     }
 
     @Test
-    fun modelFilenameIsCorrect() {
-        assertEquals("model.gguf", ModelConfig.MODEL_FILENAME)
+    fun mmprojUrlIsEmpty() {
+        assertEquals(
+            "MMPROJ_URL は空文字でなければならない（getMmprojPath() 互換性のため維持）",
+            "",
+            ModelConfig.MMPROJ_URL
+        )
     }
 
     @Test
-    fun mmprojFilenameIsCorrect() {
-        assertEquals("mmproj.gguf", ModelConfig.MMPROJ_FILENAME)
+    fun mmprojFilenameIsEmpty() {
+        assertEquals(
+            "MMPROJ_FILENAME は空文字でなければならない（getMmprojPath() 互換性のため維持）",
+            "",
+            ModelConfig.MMPROJ_FILENAME
+        )
     }
 }

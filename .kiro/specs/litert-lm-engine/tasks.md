@@ -1,7 +1,7 @@
 # Implementation Plan
 
 - [ ] 1. Foundation: ビルド設定と定数の準備
-- [ ] 1.1 build.gradle.kts から NDK/CMake 設定を削除し LiteRT-LM Gradle 依存を追加する
+- [x] 1.1 build.gradle.kts から NDK/CMake 設定を削除し LiteRT-LM Gradle 依存を追加する
   - `externalNativeBuild`（CMakeLists.txt 参照）ブロックを削除する
   - `ndk { abiFilters }` ブロックを削除する
   - cmake arguments ブロックを削除する
