@@ -17,7 +17,7 @@
   - マニフェストに権限2件が記載されビルドが通る
   - _Requirements: 3.1, 3.3, 4.4_
 
-- [ ] 1.3 CMakeLists.txtとllama.cpp NDKビルド設定
+- [x] 1.3 CMakeLists.txtとllama.cpp NDKビルド設定
   - llama.cpp をプロジェクトルート配下にサブモジュールまたはローカルパスとして配置
   - `add_subdirectory(${LLAMA_CPP_ROOT} llama-build)` でllama + mtmdをビルド
   - `add_library(llama-jni SHARED llama_jni.cpp)` + `target_link_libraries(llama-jni llama mtmd common android log)`
