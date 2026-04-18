@@ -62,6 +62,8 @@ fun resolveScreenMode(appState: AppState): ScreenMode = when (appState) {
 fun MainScreen(
     appState: AppState,
     viewModel: MainViewModel,
+    hasCameraPermission: Boolean,
+    onRequestCameraPermission: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     when (resolveScreenMode(appState)) {
@@ -79,6 +81,8 @@ fun MainScreen(
         ScreenMode.CAMERA_SPLIT ->
             SplitContent(
                 appState = appState,
+                hasCameraPermission = hasCameraPermission,
+                onRequestCameraPermission = onRequestCameraPermission,
                 modifier = modifier,
             )
     }
@@ -173,14 +177,17 @@ private fun LoadingContent(modifier: Modifier = Modifier) {
 @Composable
 private fun SplitContent(
     appState: AppState,
+    hasCameraPermission: Boolean,
+    onRequestCameraPermission: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
-        // 上半分: CameraPreviewSection プレースホルダー（Task 7.x で実装）
         Box(modifier = Modifier.weight(0.5f)) {
-            CameraPreviewSection()
+            CameraPreviewSection(
+                hasCameraPermission = hasCameraPermission,
+                onRequestPermission = onRequestCameraPermission,
+            )
         }
-        // 下半分: ResultSection（AppState に応じてローディング・テキスト・エラーを表示）
         Box(modifier = Modifier.weight(0.5f)) {
             ResultSection(appState = appState)
         }

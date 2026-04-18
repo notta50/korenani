@@ -154,7 +154,7 @@
 
 ## Task 7 (P): CameraXカメラ機能
 
-- [ ] 7.1 カメラ権限要求フローの実装
+- [x] 7.1 カメラ権限要求フローの実装
   - `rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission())` でCAMERA権限要求
   - 権限未取得時に権限要求ダイアログを自動表示
   - 権限拒否時に「設定から権限を許可してください」の説明UIを表示
