@@ -18,21 +18,10 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         ndk {
-            abiFilters += listOf("arm64-v8a")
-        }
-
-        externalNativeBuild {
-            cmake {
-                arguments(
-                    "-DBUILD_SHARED_LIBS=ON",
-                    "-DLLAMA_BUILD_COMMON=ON",
-                    "-DGGML_BACKEND_DL=ON",
-                    "-DGGML_CPU_ALL_VARIANTS=ON",
-                    "-DGGML_OPENMP=OFF",
-                    "-DLLAMA_BUILD_TESTS=OFF",
-                    "-DLLAMA_BUILD_EXAMPLES=OFF"
-                )
-            }
+            // litertlm-android の .so は arm64-v8a のみ提供される。
+            // 未指定の場合、Gradle が誤った ABI 向けにビルドし .so が APK に包含されず
+            // JNI ロード失敗 → SIGSEGV を引き起こす。
+            abiFilters += "arm64-v8a"
         }
     }
 
@@ -65,14 +54,6 @@ android {
         }
     }
 
-    externalNativeBuild {
-        cmake {
-            path = file("src/main/cpp/CMakeLists.txt")
-            version = "3.22.1"
-        }
-    }
-
-    ndkVersion = "27.1.12297006"
 }
 
 dependencies {
@@ -99,6 +80,12 @@ dependencies {
 
     // OkHttp 4.x
     implementation(libs.okhttp)
+
+    // LiteRT-LM SDK
+    implementation("com.google.ai.edge.litertlm:litertlm-android:0.10.2")
+
+    // Material Icons (キャンセルボタン用 Close アイコン)
+    implementation("androidx.compose.material:material-icons-core")
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

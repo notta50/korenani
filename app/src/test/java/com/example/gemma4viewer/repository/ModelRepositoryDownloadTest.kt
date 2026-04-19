@@ -38,29 +38,20 @@ class ModelRepositoryDownloadTest {
         val baseUrl = server.url("/").toString()
         return ModelRepositoryImpl(
             filesDir = filesDir,
-            modelUrl = baseUrl + "model.gguf",
-            mmprojUrl = baseUrl + "mmproj.gguf"
+            modelUrl = baseUrl + "model.litertlm"
         )
     }
 
     // テスト1: 正常ダウンロード完了 → Progress が複数 emit され最後に Finished
     @Test
     fun downloadModels_success_emitsProgressThenFinished() {
-        // model.gguf レスポンス (小さいデータ)
+        // .litertlm レスポンス (小さいデータ)
         val modelBody = Buffer().apply { write(ByteArray(1024) { it.toByte() }) }
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
                 .addHeader("Content-Length", "1024")
                 .setBody(modelBody)
-        )
-        // mmproj.gguf レスポンス
-        val mmprojBody = Buffer().apply { write(ByteArray(512) { it.toByte() }) }
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .addHeader("Content-Length", "512")
-                .setBody(mmprojBody)
         )
 
         val results = mutableListOf<DownloadState>()
@@ -90,7 +81,7 @@ class ModelRepositoryDownloadTest {
     @Test
     fun downloadModels_existingFile_sendsRangeHeader() {
         // 既存の部分ファイルを作成 (100バイト)
-        val existingModelFile = File(filesDir, "model.gguf")
+        val existingModelFile = File(filesDir, "gemma-4-E2B-it.litertlm")
         existingModelFile.writeBytes(ByteArray(100) { 0 })
 
         // サーバーは 206 Partial Content を返す
@@ -101,20 +92,12 @@ class ModelRepositoryDownloadTest {
                 .addHeader("Content-Length", "924")
                 .setBody(remainingBody)
         )
-        // mmproj.gguf レスポンス
-        val mmprojBody = Buffer().apply { write(ByteArray(512) { it.toByte() }) }
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .addHeader("Content-Length", "512")
-                .setBody(mmprojBody)
-        )
 
         runBlocking {
             makeRepo().downloadModels().toList()
         }
 
-        // model.gguf リクエストの Range ヘッダーを確認
+        // .litertlm リクエストの Range ヘッダーを確認
         val modelRequest = server.takeRequest()
         assertEquals("bytes=100-", modelRequest.getHeader("Range"))
     }
@@ -123,19 +106,11 @@ class ModelRepositoryDownloadTest {
     @Test
     fun downloadModels_chunkedTransfer_emitsProgressWithMinusOne() {
         // chunked エンコーディングで Content-Length を省略
-        // MockWebServer では setChunkedBody を使うことで Transfer-Encoding: chunked になる
         val modelData = ByteArray(1024) { it.toByte() }
         server.enqueue(
             MockResponse()
                 .setResponseCode(200)
                 .setChunkedBody(Buffer().apply { write(modelData) }, 256)
-                // setChunkedBody は Transfer-Encoding: chunked を設定し Content-Length は省略
-        )
-        val mmprojData = ByteArray(512) { it.toByte() }
-        server.enqueue(
-            MockResponse()
-                .setResponseCode(200)
-                .setChunkedBody(Buffer().apply { write(mmprojData) }, 128)
         )
 
         val results = mutableListOf<DownloadState>()

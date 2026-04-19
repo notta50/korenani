@@ -20,6 +20,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.ViewModelProvider
+import com.example.gemma4viewer.engine.LiteRtLmEngine
 import com.example.gemma4viewer.repository.InferenceRepositoryImpl
 import com.example.gemma4viewer.repository.ModelRepositoryImpl
 import com.example.gemma4viewer.ui.MainScreen
@@ -32,13 +33,14 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         val modelRepo = ModelRepositoryImpl(filesDir)
-        val inferenceRepo = InferenceRepositoryImpl()
+        val inferenceRepo = InferenceRepositoryImpl(engine = LiteRtLmEngine(), cacheDir = cacheDir)
         val vmFactory = MainViewModel.Factory(modelRepo, inferenceRepo)
 
         setContent {
             Gemma4CameraViewerTheme {
                 val vm = ViewModelProvider(this, vmFactory)[MainViewModel::class.java]
                 val appState by vm.appState.collectAsState()
+                val capturedBitmap by vm.capturedBitmap.collectAsState()
 
                 var hasCameraPermission by remember {
                     mutableStateOf(
@@ -64,6 +66,7 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     MainScreen(
                         appState = appState,
+                        capturedBitmap = capturedBitmap,
                         viewModel = vm,
                         hasCameraPermission = hasCameraPermission,
                         onRequestCameraPermission = {

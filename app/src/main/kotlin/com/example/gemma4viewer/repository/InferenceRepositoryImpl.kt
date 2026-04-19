@@ -1,64 +1,77 @@
 package com.example.gemma4viewer.repository
 
 import android.graphics.Bitmap
-import com.example.gemma4viewer.engine.LlamaEngine
-import com.example.gemma4viewer.util.ImageUtils.toRgbByteArray
+import com.example.gemma4viewer.engine.LiteRtLmEngine
+import java.io.File
+import java.io.FileOutputStream
+import java.util.concurrent.Executors
+import kotlin.math.min
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
-import kotlin.math.min
 
-internal fun computeNThreads(): Int =
-    min(Runtime.getRuntime().availableProcessors(), 8)
-
-/**
- * Gemma 4マルチモーダルプロンプトテンプレートを構築する純粋関数。
- * mediaMarkerはmtmd_default_marker()が返す文字列（例: "<__media__>"）を渡す。
- */
-internal fun buildGemma4Prompt(userText: String, mediaMarker: String): String =
-    "<start_of_turn>user\n$mediaMarker\n$userText<end_of_turn>\n<start_of_turn>model\n"
-
-class InferenceRepositoryImpl(
-    private val engine: LlamaEngine = LlamaEngine()
+open class InferenceRepositoryImpl(
+    private val engine: LiteRtLmEngine,
+    private val cacheDir: File
 ) : InferenceRepository {
 
-    override suspend fun initialize(modelPath: String, mmprojPath: String) =
-        withContext(Dispatchers.IO) {
-            val nThreads = computeNThreads()
-            if (engine.nativeLoad(modelPath) != 0) {
-                error("nativeLoad failed: $modelPath")
-            }
-            if (engine.nativePrepare(nCtx = 4096, nThreads = nThreads) != 0) {
-                error("nativePrepare failed")
-            }
-            if (engine.nativeLoadMmproj(mmprojPath) != 0) {
-                error("nativeLoadMmproj failed: $mmprojPath")
-            }
+    private val engineDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+
+    override suspend fun initialize(modelPath: String, mmprojPath: String) {
+        // mmprojPath は LiteRT-LM では使用しない（要件 5.3）
+        withContext(engineDispatcher) {
+            engine.initialize(modelPath)
         }
+    }
 
     override fun infer(bitmap: Bitmap, prompt: String): Flow<String> = flow {
-        val rgb = with(com.example.gemma4viewer.util.ImageUtils) { bitmap.toRgbByteArray() }
-        val fullPrompt = buildGemma4Prompt(prompt, MEDIA_MARKER)
-
-        if (engine.nativeProcessImageTurn(rgb, bitmap.width, bitmap.height, fullPrompt) != 0) {
-            error("nativeProcessImageTurn failed")
+        val tempFile = createAndWriteTempFile(bitmap)
+        try {
+            engine.infer(tempFile.absolutePath, prompt).collect { token ->
+                emit(token)
+            }
+        } finally {
+            tempFile.delete()
         }
+    }.flowOn(engineDispatcher)
 
-        while (true) {
-            val token = engine.nativeGenerateNextToken()
-            if (token.isEmpty()) break
-            emit(token)
+    override suspend fun release() {
+        withContext(engineDispatcher) {
+            engine.release()
         }
-    }.flowOn(Dispatchers.IO)
+    }
 
-    override suspend fun release() = withContext(Dispatchers.IO) {
-        engine.nativeUnload()
+    /**
+     * Bitmap を最大 [MAX_IMAGE_SIZE]px にリサイズし JPEG 一時ファイルとして [cacheDir] に保存する。
+     * テストでオーバーライド可能（open）。
+     */
+    open fun createAndWriteTempFile(bitmap: Bitmap): File {
+        val scaled = bitmap.scaleToMax(MAX_IMAGE_SIZE)
+        val tempFile = File.createTempFile("infer_", ".jpg", cacheDir)
+        FileOutputStream(tempFile).use { fos ->
+            scaled.compress(Bitmap.CompressFormat.JPEG, 90, fos)
+        }
+        return tempFile
     }
 
     companion object {
-        // mtmd_default_marker() が返すデフォルトマーカー文字列
-        private const val MEDIA_MARKER = "<__media__>"
+        private const val MAX_IMAGE_SIZE = 896
+
+        private fun Bitmap.scaleToMax(maxPx: Int): Bitmap {
+            val scale = min(maxPx.toFloat() / width, maxPx.toFloat() / height)
+            val targetW = if (scale >= 1f) width else (width * scale).toInt()
+            val targetH = if (scale >= 1f) height else (height * scale).toInt()
+
+            var alignedW = (targetW / 16) * 16
+            var alignedH = (targetH / 16) * 16
+            if (alignedW == 0) alignedW = 16
+            if (alignedH == 0) alignedH = 16
+
+            if (alignedW == width && alignedH == height) return this
+            return Bitmap.createScaledBitmap(this, alignedW, alignedH, true)
+        }
     }
 }

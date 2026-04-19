@@ -47,6 +47,7 @@ sealed class ResultContent {
 fun resolveResultContent(appState: AppState): ResultContent = when (appState) {
     is AppState.Inferencing     -> ResultContent.Loading
     is AppState.InferenceResult -> ResultContent.Success(text = appState.text)
+    is AppState.InferenceDone   -> ResultContent.Success(text = appState.text)
     is AppState.InferenceError  -> ResultContent.Error(message = "推論エラー: ${appState.message}")
     else                        -> ResultContent.Empty
 }

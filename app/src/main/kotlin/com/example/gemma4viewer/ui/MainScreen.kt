@@ -1,5 +1,6 @@
 package com.example.gemma4viewer.ui
 
+import android.graphics.Bitmap
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -46,6 +47,7 @@ fun resolveScreenMode(appState: AppState): ScreenMode = when (appState) {
     is AppState.Inferencing      -> ScreenMode.CAMERA_SPLIT
     is AppState.InferenceResult  -> ScreenMode.CAMERA_SPLIT
     is AppState.InferenceError   -> ScreenMode.CAMERA_SPLIT
+    is AppState.InferenceDone    -> ScreenMode.CAMERA_SPLIT
 }
 
 // --------------------------------------------------------------------------
@@ -61,6 +63,7 @@ fun resolveScreenMode(appState: AppState): ScreenMode = when (appState) {
 @Composable
 fun MainScreen(
     appState: AppState,
+    capturedBitmap: Bitmap?,
     viewModel: MainViewModel,
     hasCameraPermission: Boolean,
     onRequestCameraPermission: () -> Unit,
@@ -81,9 +84,12 @@ fun MainScreen(
         ScreenMode.CAMERA_SPLIT ->
             SplitContent(
                 appState = appState,
+                capturedBitmap = capturedBitmap,
                 hasCameraPermission = hasCameraPermission,
                 onRequestCameraPermission = onRequestCameraPermission,
                 onCapture = viewModel::onCapture,
+                onReturnToCamera = viewModel::onReturnToCamera,
+                onCancelInference = viewModel::onCancelInference,
                 modifier = modifier,
             )
     }
@@ -178,9 +184,12 @@ private fun LoadingContent(modifier: Modifier = Modifier) {
 @Composable
 private fun SplitContent(
     appState: AppState,
+    capturedBitmap: Bitmap?,
     hasCameraPermission: Boolean,
     onRequestCameraPermission: () -> Unit,
-    onCapture: (android.graphics.Bitmap) -> Unit,
+    onCapture: (Bitmap) -> Unit,
+    onReturnToCamera: () -> Unit,
+    onCancelInference: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -189,7 +198,10 @@ private fun SplitContent(
                 hasCameraPermission = hasCameraPermission,
                 onRequestPermission = onRequestCameraPermission,
                 appState = appState,
+                capturedBitmap = capturedBitmap,
                 onCapture = onCapture,
+                onReturnToCamera = onReturnToCamera,
+                onCancelInference = onCancelInference,
             )
         }
         Box(modifier = Modifier.weight(0.5f)) {

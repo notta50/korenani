@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- カメラボディ（上部バンプ付き） -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M76,34H66L62,26H46L42,34H32C28.7,34 26,36.7 26,40V76C26,79.3 28.7,82 32,82H76C79.3,82 82,79.3 82,76V40C82,36.7 79.3,34 76,34Z" />
+
+    <!-- レンズ外リング（シアン） -->
+    <path
+        android:fillColor="#00BCD4"
+        android:pathData="M54,57 m-16,0 a16,16 0 1,0 32,0 a16,16 0 1,0 -32,0" />
+
+    <!-- レンズ内（ダーク：リング効果） -->
+    <path
+        android:fillColor="#0D1B2A"
+        android:pathData="M54,57 m-12,0 a12,12 0 1,0 24,0 a12,12 0 1,0 -24,0" />
+
+    <!-- ? — 上部カーブ＋縦棒 -->
+    <path
+        android:fillColor="@android:color/transparent"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M50.5,54.5C50.5,50.5 52,48.5 54,48.5C56,48.5 57.5,50 57.5,52C57.5,54.5 55,55.5 54,57.5L54,60.5" />
+
+    <!-- ? — ドット -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,64.5 m-1.8,0 a1.8,1.8 0 1,0 3.6,0 a1.8,1.8 0 1,0 -3.6,0" />
+
+</vector>

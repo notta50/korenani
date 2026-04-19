@@ -1,46 +1,125 @@
 package com.example.gemma4viewer.repository
 
+import android.graphics.Bitmap
+import com.example.gemma4viewer.engine.LiteRtLmEngine
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import org.mockito.Mockito.mock
 
 class InferenceRepositoryInferTest {
 
-    @Test
-    fun `buildGemma4Prompt contains start_of_turn user`() {
-        val prompt = buildGemma4Prompt("describe this", "<__media__>")
-        assertTrue(prompt.contains("<start_of_turn>user"))
-    }
+    @get:Rule
+    val tempFolder = TemporaryFolder()
+
+    // ---------------------------------------------------------------------------
+    // initialize: mmprojPath を受け取るが engine.initialize(modelPath) のみを呼ぶ (要件 5.3)
+    // ---------------------------------------------------------------------------
 
     @Test
-    fun `buildGemma4Prompt contains media marker`() {
-        val marker = "<__media__>"
-        val prompt = buildGemma4Prompt("describe this", marker)
-        assertTrue("プロンプトにメディアマーカーが含まれる必要がある", prompt.contains(marker))
+    fun `initialize calls engine initialize with modelPath only`() = runBlocking {
+        val cacheDir = tempFolder.newFolder("cache")
+        var initializedModelPath: String? = null
+        val fakeEngine = LiteRtLmEngine(
+            gpuEngineFactory = { modelPath ->
+                initializedModelPath = modelPath
+                FakeEngineHandle(FakeConversationHandle(flowOf()))
+            },
+            cpuEngineFactory = { _ -> FakeEngineHandle(FakeConversationHandle(flowOf())) }
+        )
+
+        val repo = InferenceRepositoryImpl(engine = fakeEngine, cacheDir = cacheDir)
+        repo.initialize("/path/to/model.litertlm", "/ignored/mmproj.bin")
+
+        assertEquals("/path/to/model.litertlm", initializedModelPath)
     }
 
-    @Test
-    fun `buildGemma4Prompt contains user text`() {
-        val userText = "この画像に写っているものを日本語で詳しく説明してください。"
-        val prompt = buildGemma4Prompt(userText, "<__media__>")
-        assertTrue(prompt.contains(userText))
-    }
+    // ---------------------------------------------------------------------------
+    // release: engine.release() が呼ばれること (要件 2.5)
+    // ---------------------------------------------------------------------------
 
     @Test
-    fun `buildGemma4Prompt ends with start_of_turn model`() {
-        val prompt = buildGemma4Prompt("describe this", "<__media__>")
-        assertTrue(
-            "プロンプトは<start_of_turn>model\\nで終わる必要がある",
-            prompt.endsWith("<start_of_turn>model\n")
+    fun `release calls engine release`() = runBlocking {
+        val cacheDir = tempFolder.newFolder("cache2")
+        val fakeConversation = FakeConversationHandle(flowOf())
+        val fakeEngine = buildFakeEngine(fakeConversation)
+
+        val repo = InferenceRepositoryImpl(engine = fakeEngine, cacheDir = cacheDir)
+        repo.initialize("/model", "/mmproj")
+        // release 後に infer すると IllegalStateException になる
+        repo.release()
+
+        var threw = false
+        try {
+            fakeEngine.infer("/any.jpg", "test")
+        } catch (e: IllegalStateException) {
+            threw = true
+        }
+        assertTrue("release後はinferがIllegalStateExceptionをスロー", threw)
+    }
+
+    // ---------------------------------------------------------------------------
+    // 一時ファイル: imagePath が engine.infer に渡されること (要件 3.1, 3.5)
+    // ---------------------------------------------------------------------------
+
+    @Test
+    fun `infer passes temp file path to engine`() = runBlocking {
+        val cacheDir = tempFolder.newFolder("cache3")
+        val fakeConversation = FakeConversationHandle(flowOf("ok"))
+        val fakeEngine = buildFakeEngine(fakeConversation)
+
+        val tempFile = java.io.File.createTempFile("infer_", ".jpg", cacheDir)
+        tempFile.writeText("fake")
+
+        val mockBitmap: Bitmap = mock(Bitmap::class.java)
+
+        val testRepo = object : InferenceRepositoryImpl(engine = fakeEngine, cacheDir = cacheDir) {
+            override fun createAndWriteTempFile(bitmap: Bitmap): java.io.File {
+                return tempFile
+            }
+        }
+
+        testRepo.initialize("/model", "/mmproj")
+        testRepo.infer(mockBitmap, "hello").collect { }
+
+        assertEquals(tempFile.absolutePath, fakeConversation.lastImagePath)
+    }
+
+    // ---------------------------------------------------------------------------
+    // Helpers
+    // ---------------------------------------------------------------------------
+
+    private fun buildFakeEngine(conversation: FakeConversationHandle): LiteRtLmEngine {
+        return LiteRtLmEngine(
+            gpuEngineFactory = { _ -> FakeEngineHandle(conversation) },
+            cpuEngineFactory = { _ -> FakeEngineHandle(conversation) }
         )
     }
 
-    @Test
-    fun `buildGemma4Prompt marker appears before user text`() {
-        val marker = "<__media__>"
-        val userText = "describe this"
-        val prompt = buildGemma4Prompt(userText, marker)
-        val markerIdx = prompt.indexOf(marker)
-        val userTextIdx = prompt.indexOf(userText)
-        assertTrue("メディアマーカーはユーザーテキストより前に来る必要がある", markerIdx < userTextIdx)
+    class FakeEngineHandle(
+        private val conversationHandle: FakeConversationHandle
+    ) : LiteRtLmEngine.EngineHandle {
+        override fun close() {}
+        override fun createConversation(): LiteRtLmEngine.ConversationHandle = conversationHandle
+    }
+
+    class FakeConversationHandle(
+        private val responseFlow: Flow<String>
+    ) : LiteRtLmEngine.ConversationHandle {
+        var lastImagePath: String? = null
+        var lastPrompt: String? = null
+
+        override fun sendMessageAsync(imagePath: String, prompt: String): Flow<String> {
+            lastImagePath = imagePath
+            lastPrompt = prompt
+            return responseFlow
+        }
+
+        override fun close() {}
     }
 }

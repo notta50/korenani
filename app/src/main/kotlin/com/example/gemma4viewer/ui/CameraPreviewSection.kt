@@ -1,6 +1,14 @@
 package com.example.gemma4viewer.ui
 
 import android.graphics.Bitmap
+import android.graphics.Matrix
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.camera.compose.CameraXViewfinder
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -9,7 +17,6 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceRequest
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,7 +24,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,7 +68,10 @@ fun CameraPreviewSection(
     hasCameraPermission: Boolean,
     onRequestPermission: () -> Unit,
     appState: AppState,
+    capturedBitmap: Bitmap?,
     onCapture: (Bitmap) -> Unit,
+    onReturnToCamera: () -> Unit,
+    onCancelInference: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val deniedMessage = resolveCameraPermissionMessage(hasCameraPermission)
@@ -80,6 +94,56 @@ fun CameraPreviewSection(
                 Spacer(modifier = Modifier.height(16.dp))
                 Button(onClick = onRequestPermission) {
                     Text(text = "権限を許可する")
+                }
+            }
+        }
+    } else if (capturedBitmap != null &&
+        (appState is AppState.Inferencing ||
+         appState is AppState.InferenceResult ||
+         appState is AppState.InferenceError ||
+         appState is AppState.InferenceDone)
+    ) {
+        // 推論中・ストリーミング中・完了後は撮影した静止画を表示
+        Box(modifier = modifier.fillMaxSize()) {
+            Image(
+                bitmap = capturedBitmap.asImageBitmap(),
+                contentDescription = "解析中の画像",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+            )
+
+            // 推論中（Inferencing / InferenceResult）のみ右上に丸い×ボタンを表示
+            if (appState is AppState.Inferencing || appState is AppState.InferenceResult) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp)
+                        .size(36.dp)
+                        .background(
+                            color = Color.Black.copy(alpha = 0.55f),
+                            shape = CircleShape,
+                        )
+                        .clickable { onCancelInference() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "推論を中断する",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+
+            // 推論完了後は『カメラ起動』ボタンを撮影ボタンと同じ位置に表示
+            if (appState is AppState.InferenceDone) {
+                Button(
+                    onClick = onReturnToCamera,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 16.dp),
+                ) {
+                    Text(text = "カメラ起動")
                 }
             }
         }
@@ -146,8 +210,13 @@ internal fun CameraXPreviewContent(
                     ContextCompat.getMainExecutor(context),
                     object : ImageCapture.OnImageCapturedCallback() {
                         override fun onCaptureSuccess(imageProxy: ImageProxy) {
-                            val bitmap: Bitmap = imageProxy.toBitmap()
+                            val rotation = imageProxy.imageInfo.rotationDegrees
+                            val raw: Bitmap = imageProxy.toBitmap()
                             imageProxy.close()
+                            val bitmap = if (rotation != 0) {
+                                val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
+                                Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, matrix, true)
+                            } else raw
                             onCapture(bitmap)
                         }
 
