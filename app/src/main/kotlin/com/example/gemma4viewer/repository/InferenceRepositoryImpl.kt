@@ -4,20 +4,27 @@ import android.graphics.Bitmap
 import com.example.gemma4viewer.engine.LiteRtLmEngine
 import java.io.File
 import java.io.FileOutputStream
+import java.util.concurrent.Executors
 import kotlin.math.min
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 
 open class InferenceRepositoryImpl(
     private val engine: LiteRtLmEngine,
     private val cacheDir: File
 ) : InferenceRepository {
 
+    private val engineDispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+
     override suspend fun initialize(modelPath: String, mmprojPath: String) {
         // mmprojPath は LiteRT-LM では使用しない（要件 5.3）
-        engine.initialize(modelPath)
+        withContext(engineDispatcher) {
+            engine.initialize(modelPath)
+        }
     }
 
     override fun infer(bitmap: Bitmap, prompt: String): Flow<String> = flow {
@@ -29,10 +36,12 @@ open class InferenceRepositoryImpl(
         } finally {
             tempFile.delete()
         }
-    }.flowOn(Dispatchers.IO)
+    }.flowOn(engineDispatcher)
 
     override suspend fun release() {
-        engine.release()
+        withContext(engineDispatcher) {
+            engine.release()
+        }
     }
 
     /**
@@ -49,14 +58,20 @@ open class InferenceRepositoryImpl(
     }
 
     companion object {
-        private const val MAX_IMAGE_SIZE = 336
+        private const val MAX_IMAGE_SIZE = 896
 
         private fun Bitmap.scaleToMax(maxPx: Int): Bitmap {
             val scale = min(maxPx.toFloat() / width, maxPx.toFloat() / height)
-            if (scale >= 1f) return this
-            val w = (width * scale).toInt().coerceAtLeast(1)
-            val h = (height * scale).toInt().coerceAtLeast(1)
-            return Bitmap.createScaledBitmap(this, w, h, true)
+            val targetW = if (scale >= 1f) width else (width * scale).toInt()
+            val targetH = if (scale >= 1f) height else (height * scale).toInt()
+
+            var alignedW = (targetW / 16) * 16
+            var alignedH = (targetH / 16) * 16
+            if (alignedW == 0) alignedW = 16
+            if (alignedH == 0) alignedH = 16
+
+            if (alignedW == width && alignedH == height) return this
+            return Bitmap.createScaledBitmap(this, alignedW, alignedH, true)
         }
     }
 }

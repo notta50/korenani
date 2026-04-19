@@ -17,6 +17,12 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
+        ndk {
+            // litertlm-android の .so は arm64-v8a のみ提供される。
+            // 未指定の場合、Gradle が誤った ABI 向けにビルドし .so が APK に包含されず
+            // JNI ロード失敗 → SIGSEGV を引き起こす。
+            abiFilters += "arm64-v8a"
+        }
     }
 
     buildTypes {
@@ -77,6 +83,9 @@ dependencies {
 
     // LiteRT-LM SDK
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.10.2")
+
+    // Material Icons (キャンセルボタン用 Close アイコン)
+    implementation("androidx.compose.material:material-icons-core")
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)

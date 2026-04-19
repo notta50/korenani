@@ -47,6 +47,7 @@ fun resolveScreenMode(appState: AppState): ScreenMode = when (appState) {
     is AppState.Inferencing      -> ScreenMode.CAMERA_SPLIT
     is AppState.InferenceResult  -> ScreenMode.CAMERA_SPLIT
     is AppState.InferenceError   -> ScreenMode.CAMERA_SPLIT
+    is AppState.InferenceDone    -> ScreenMode.CAMERA_SPLIT
 }
 
 // --------------------------------------------------------------------------
@@ -87,6 +88,8 @@ fun MainScreen(
                 hasCameraPermission = hasCameraPermission,
                 onRequestCameraPermission = onRequestCameraPermission,
                 onCapture = viewModel::onCapture,
+                onReturnToCamera = viewModel::onReturnToCamera,
+                onCancelInference = viewModel::onCancelInference,
                 modifier = modifier,
             )
     }
@@ -185,6 +188,8 @@ private fun SplitContent(
     hasCameraPermission: Boolean,
     onRequestCameraPermission: () -> Unit,
     onCapture: (Bitmap) -> Unit,
+    onReturnToCamera: () -> Unit,
+    onCancelInference: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -195,6 +200,8 @@ private fun SplitContent(
                 appState = appState,
                 capturedBitmap = capturedBitmap,
                 onCapture = onCapture,
+                onReturnToCamera = onReturnToCamera,
+                onCancelInference = onCancelInference,
             )
         }
         Box(modifier = Modifier.weight(0.5f)) {

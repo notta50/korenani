@@ -22,6 +22,11 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- LiteRT-LM GPU バックエンドが必要とするベンダーネイティブライブラリ -->
+        <!-- android:required="false" により、非対応端末でも起動できるようにする -->
+        <uses-native-library android:name="libvndksupport.so" android:required="false"/>
+        <uses-native-library android:name="libOpenCL.so" android:required="false"/>
     </application>
 
 </manifest>

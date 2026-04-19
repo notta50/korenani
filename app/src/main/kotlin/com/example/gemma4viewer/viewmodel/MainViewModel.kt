@@ -8,10 +8,13 @@ import androidx.lifecycle.viewModelScope
 import com.example.gemma4viewer.repository.DownloadState
 import com.example.gemma4viewer.repository.InferenceRepository
 import com.example.gemma4viewer.repository.ModelRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainViewModel(
     private val modelRepo: ModelRepository,
@@ -26,9 +29,13 @@ class MainViewModel(
     private val _capturedBitmap = MutableStateFlow<Bitmap?>(null)
     val capturedBitmap: StateFlow<Bitmap?> = _capturedBitmap.asStateFlow()
 
+    /** 実行中の推論ジョブ。キャンセル操作のために保持する。 */
+    private var inferenceJob: Job? = null
+
     fun onAppStart() {
         viewModelScope.launch {
-            if (modelRepo.isModelReady()) {
+            val ready = withContext(Dispatchers.IO) { modelRepo.isModelReady() }
+            if (ready) {
                 loadModel()
             } else {
                 _appState.value = AppState.DownloadRequired
@@ -49,7 +56,7 @@ class MainViewModel(
     }
 
     fun onCapture(bitmap: Bitmap) {
-        viewModelScope.launch {
+        inferenceJob = viewModelScope.launch {
             _capturedBitmap.value = bitmap
             _appState.value = AppState.Inferencing
             try {
@@ -58,13 +65,35 @@ class MainViewModel(
                     accumulatedText += token
                     _appState.value = AppState.InferenceResult(accumulatedText)
                 }
-                _appState.value = AppState.ModelReady
+                // 推論完了: 写真と結果テキストをそのまま表示する
+                _appState.value = AppState.InferenceDone(accumulatedText)
             } catch (e: Exception) {
+                // CancellationException は必ず再スローしてコルーチンビルドの従来動作を守る
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _appState.value = AppState.InferenceError(e.message ?: "推論エラーが発生しました。")
             } finally {
-                _capturedBitmap.value = null
+                inferenceJob = null
             }
         }
+    }
+
+    /** 『挊り込み中の推論』を中断し、途中結果を表示したまま InferenceDone 状態に遷移する */
+    fun onCancelInference() {
+        inferenceJob?.cancel()
+        inferenceJob = null
+        // キャンセル時点で溜まっているテキストを取得して InferenceDone に遷移
+        // capturedBitmap はそのまま保持し、静止画と「カメラ起動」ボタンを表示し続ける
+        val partialText = when (val state = _appState.value) {
+            is AppState.InferenceResult -> state.text
+            else -> ""
+        }
+        _appState.value = AppState.InferenceDone(partialText)
+    }
+
+    /** 『カメラ起動』ボタン按下: 写真と結果をクリアしてカメラモードに戻る */
+    fun onReturnToCamera() {
+        _capturedBitmap.value = null
+        _appState.value = AppState.ModelReady
     }
 
     private suspend fun runDownloadAndLoad() {
@@ -100,10 +129,12 @@ class MainViewModel(
     private suspend fun loadModel() {
         _appState.value = AppState.ModelLoading
         try {
-            inferenceRepo.initialize(
-                modelRepo.getModelPath(),
-                modelRepo.getMmprojPath()
-            )
+            withContext(Dispatchers.IO) {
+                inferenceRepo.initialize(
+                    modelRepo.getModelPath(),
+                    modelRepo.getMmprojPath()
+                )
+            }
             _appState.value = AppState.ModelReady
         } catch (e: Exception) {
             _appState.value = AppState.InferenceError(e.message ?: "モデルロードに失敗しました")

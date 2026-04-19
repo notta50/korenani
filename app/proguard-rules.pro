@@ -19,3 +19,8 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# LiteRT-LM SDK: JNI クラスのクラス名・メソッド名をリネームしない。
+# minifyEnabled = true のときに JNI シンボルが解決できなくなるのを防ぐ。
+-keep class com.google.ai.edge.litertlm.** { *; }
+-keepclassmembers class com.google.ai.edge.litertlm.** { *; }

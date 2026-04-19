@@ -8,6 +8,7 @@ import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 
 /**
@@ -20,13 +21,21 @@ import kotlinx.coroutines.flow.map
 class LiteRtLmEngine(
     private val gpuEngineFactory: suspend (modelPath: String) -> EngineHandle = { modelPath ->
         SdkEngineHandle(
-            Engine(EngineConfig(modelPath = modelPath, backend = Backend.GPU()))
+            Engine(EngineConfig(
+                modelPath = modelPath,
+                backend = Backend.GPU(),
+                visionBackend = Backend.GPU(), // マルチモーダル推論には visionBackend の指定が必須（公式ドキュメント導)
+            ))
                 .also { it.initialize() }
         )
     },
     private val cpuEngineFactory: suspend (modelPath: String) -> EngineHandle = { modelPath ->
         SdkEngineHandle(
-            Engine(EngineConfig(modelPath = modelPath, backend = Backend.CPU()))
+            Engine(EngineConfig(
+                modelPath = modelPath,
+                backend = Backend.CPU(),
+                visionBackend = Backend.CPU(),
+            ))
                 .also { it.initialize() }
         )
     },
@@ -64,7 +73,6 @@ class LiteRtLmEngine(
     }
 
     private var engineHandle: EngineHandle? = null
-    private var conversationHandle: ConversationHandle? = null
 
     /**
      * GPU バックエンドでエンジンを初期化する。GPU が利用できない場合は CPU にフォールバックする。
@@ -85,15 +93,12 @@ class LiteRtLmEngine(
             h
         }
         engineHandle = handle
-        conversationHandle = handle.createConversation()
     }
 
     /**
      * エンジンリソースを解放する。解放後の infer() 呼び出しは IllegalStateException をスローする。
      */
     suspend fun release() {
-        conversationHandle?.close()
-        conversationHandle = null
         engineHandle?.close()
         engineHandle = null
         Log.i(TAG, "エンジンリソースを解放しました")
@@ -112,10 +117,22 @@ class LiteRtLmEngine(
      * @throws IllegalStateException initialize() が呼ばれていないか、release() 後に呼ばれた場合
      */
     fun infer(imagePath: String, prompt: String): Flow<String> {
-        val conversation = checkNotNull(conversationHandle) {
+        val engine = checkNotNull(engineHandle) {
             "エンジンが初期化されていません。infer() の前に initialize() を呼び出してください。"
         }
-        return conversation.sendMessageAsync(imagePath, prompt)
+        return flow {
+            // LiteRT-LM の Conversation は 1 回の推論ごとに新規生成・廃棄する必要がある。
+            // 同じ Conversation を再利用すると内部ネイティブポインタが無効化され SIGSEGV を引き起こす。
+            val conversation = engine.createConversation()
+            try {
+                conversation.sendMessageAsync(imagePath, prompt).collect { token ->
+                    emit(token)
+                }
+            } finally {
+                conversation.close()
+                Log.d(TAG, "Conversation を廃棄しました")
+            }
+        }
     }
 
     companion object {

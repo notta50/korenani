@@ -3,7 +3,11 @@ package com.example.gemma4viewer.ui
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.camera.compose.CameraXViewfinder
 import androidx.camera.core.CameraSelector
@@ -13,7 +17,6 @@ import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
 import androidx.camera.core.SurfaceRequest
 import androidx.camera.lifecycle.ProcessCameraProvider
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,8 +24,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -64,6 +70,8 @@ fun CameraPreviewSection(
     appState: AppState,
     capturedBitmap: Bitmap?,
     onCapture: (Bitmap) -> Unit,
+    onReturnToCamera: () -> Unit,
+    onCancelInference: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val deniedMessage = resolveCameraPermissionMessage(hasCameraPermission)
@@ -89,8 +97,13 @@ fun CameraPreviewSection(
                 }
             }
         }
-    } else if (capturedBitmap != null && (appState is AppState.Inferencing || appState is AppState.InferenceResult || appState is AppState.InferenceError)) {
-        // 推論中・結果表示中・エラー中は撮影した静止画を表示
+    } else if (capturedBitmap != null &&
+        (appState is AppState.Inferencing ||
+         appState is AppState.InferenceResult ||
+         appState is AppState.InferenceError ||
+         appState is AppState.InferenceDone)
+    ) {
+        // 推論中・ストリーミング中・完了後は撮影した静止画を表示
         Box(modifier = modifier.fillMaxSize()) {
             Image(
                 bitmap = capturedBitmap.asImageBitmap(),
@@ -98,10 +111,40 @@ fun CameraPreviewSection(
                 contentScale = ContentScale.Crop,
                 modifier = Modifier.fillMaxSize(),
             )
-            if (appState is AppState.Inferencing) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center),
-                )
+
+            // 推論中（Inferencing / InferenceResult）のみ右上に丸い×ボタンを表示
+            if (appState is AppState.Inferencing || appState is AppState.InferenceResult) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(10.dp)
+                        .size(36.dp)
+                        .background(
+                            color = Color.Black.copy(alpha = 0.55f),
+                            shape = CircleShape,
+                        )
+                        .clickable { onCancelInference() },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Close,
+                        contentDescription = "推論を中断する",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
+            }
+
+            // 推論完了後は『カメラ起動』ボタンを撮影ボタンと同じ位置に表示
+            if (appState is AppState.InferenceDone) {
+                Button(
+                    onClick = onReturnToCamera,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 16.dp),
+                ) {
+                    Text(text = "カメラ起動")
+                }
             }
         }
     } else {
