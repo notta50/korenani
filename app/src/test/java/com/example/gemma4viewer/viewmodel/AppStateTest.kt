@@ -83,7 +83,8 @@ class AppStateTest {
             AppState.ModelReady,
             AppState.Inferencing,
             AppState.InferenceResult(""),
-            AppState.InferenceError("")
+            AppState.InferenceError(""),
+            AppState.InferenceDone("")
         )
 
         for (state in states) {
@@ -97,6 +98,7 @@ class AppStateTest {
                 is AppState.Inferencing      -> "Inferencing"
                 is AppState.InferenceResult  -> "InferenceResult:${state.text}"   // スマートキャスト確認
                 is AppState.InferenceError   -> "InferenceError:${state.message}" // スマートキャスト確認
+                is AppState.InferenceDone    -> "InferenceDone:${state.text}"     // スマートキャスト確認
             }
             assertTrue("label must not be empty", label.isNotEmpty())
         }
