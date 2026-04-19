@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.gemma4viewer.repository.DownloadState
 import com.example.gemma4viewer.repository.InferenceRepository
 import com.example.gemma4viewer.repository.ModelRepository
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -33,6 +34,8 @@ class MainViewModel(
     private var inferenceJob: Job? = null
 
     fun onAppStart() {
+        // DownloadRequired（初期状態 or モデル未取得）以外はすでに初期化済み → 再実行しない
+        if (_appState.value !is AppState.DownloadRequired) return
         viewModelScope.launch {
             val ready = withContext(Dispatchers.IO) { modelRepo.isModelReady() }
             if (ready) {
@@ -90,6 +93,13 @@ class MainViewModel(
         _appState.value = AppState.InferenceDone(partialText)
     }
 
+    override fun onCleared() {
+        super.onCleared()
+        CoroutineScope(Dispatchers.IO).launch {
+            inferenceRepo.release()
+        }
+    }
+
     /** 『カメラ起動』ボタン按下: 写真と結果をクリアしてカメラモードに戻る */
     fun onReturnToCamera() {
         _capturedBitmap.value = null
@@ -137,6 +147,7 @@ class MainViewModel(
             }
             _appState.value = AppState.ModelReady
         } catch (e: Exception) {
+            Log.e(TAG, "loadModel: モデルロード失敗: ${e.javaClass.simpleName}: ${e.message}", e)
             _appState.value = AppState.InferenceError(e.message ?: "モデルロードに失敗しました")
         }
     }

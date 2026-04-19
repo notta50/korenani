@@ -42,6 +42,7 @@ open class InferenceRepositoryImpl(
         withContext(engineDispatcher) {
             engine.release()
         }
+        engineDispatcher.close()
     }
 
     /**

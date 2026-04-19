@@ -30,7 +30,7 @@ enum class ScreenMode {
     /** ModelLoading — 全面ローディングインジケータ */
     LOADING,
 
-    /** ModelReady / Inferencing / InferenceResult / InferenceError — 上下50:50分割 */
+    /** ModelReady / Inferencing / InferenceResult / InferenceError / InferenceDone — 上下50:50分割 */
     CAMERA_SPLIT,
 }
 

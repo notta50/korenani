@@ -2,6 +2,10 @@ package com.example.gemma4viewer.ui
 
 import android.graphics.Bitmap
 import android.graphics.Matrix
+import android.os.Handler
+import android.os.Looper
+import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -43,6 +47,9 @@ import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.gemma4viewer.viewmodel.AppState
+import java.util.concurrent.Executors
+
+private const val TAG = "CameraPreviewSection"
 
 /**
  * 権限状態をUIメッセージに変換する純粋関数。JVMユニットテスト可能。
@@ -135,8 +142,8 @@ fun CameraPreviewSection(
                 }
             }
 
-            // 推論完了後は『カメラ起動』ボタンを撮影ボタンと同じ位置に表示
-            if (appState is AppState.InferenceDone) {
+            // 推論完了後（InferenceDone）または推論エラー後（InferenceError）は『カメラ起動』ボタンを表示
+            if (appState is AppState.InferenceDone || appState is AppState.InferenceError) {
                 Button(
                     onClick = onReturnToCamera,
                     modifier = Modifier
@@ -170,6 +177,8 @@ internal fun CameraXPreviewContent(
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
             .build()
     }
+    // Bitmap変換・回転処理をメインスレッドから外すための専用スレッド
+    val captureExecutor = remember { Executors.newSingleThreadExecutor() }
 
     DisposableEffect(lifecycleOwner) {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
@@ -196,6 +205,11 @@ internal fun CameraXPreviewContent(
         }
     }
 
+    // コンポーザブルが Composition を離れる際にスレッドを解放する
+    DisposableEffect(Unit) {
+        onDispose { captureExecutor.shutdown() }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         surfaceRequest.value?.let { req ->
             CameraXViewfinder(
@@ -207,7 +221,7 @@ internal fun CameraXPreviewContent(
         Button(
             onClick = {
                 imageCapture.takePicture(
-                    ContextCompat.getMainExecutor(context),
+                    captureExecutor,
                     object : ImageCapture.OnImageCapturedCallback() {
                         override fun onCaptureSuccess(imageProxy: ImageProxy) {
                             val rotation = imageProxy.imageInfo.rotationDegrees
@@ -217,11 +231,19 @@ internal fun CameraXPreviewContent(
                                 val matrix = Matrix().apply { postRotate(rotation.toFloat()) }
                                 Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, matrix, true)
                             } else raw
-                            onCapture(bitmap)
+                            // ViewModel への通知はメインスレッドで行う
+                            Handler(Looper.getMainLooper()).post { onCapture(bitmap) }
                         }
 
                         override fun onError(exception: ImageCaptureException) {
-                            // 撮影エラーは無視（再撮影可能）
+                            Log.w(TAG, "撮影失敗: code=${exception.imageCaptureError}", exception)
+                            Handler(Looper.getMainLooper()).post {
+                                Toast.makeText(
+                                    context,
+                                    "撮影に失敗しました。もう一度お試しください。",
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
                         }
                     }
                 )

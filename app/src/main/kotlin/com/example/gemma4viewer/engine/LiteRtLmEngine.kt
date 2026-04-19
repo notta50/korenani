@@ -74,6 +74,15 @@ class LiteRtLmEngine(
 
     private var engineHandle: EngineHandle? = null
 
+    /** initialize() で渡されたモデルパス。推論時 CPU フォールバックで再初期化に使用する。 */
+    private var currentModelPath: String? = null
+
+    /**
+     * true: GPU で初期化済み（推論時に GPU 失敗が起きたら CPU フォールバックを試みる余地がある）
+     * false: すでに CPU フォールバック済み、または初期化前
+     */
+    private var gpuInitSucceeded = false
+
     /**
      * GPU バックエンドでエンジンを初期化する。GPU が利用できない場合は CPU にフォールバックする。
      * 全バックエンドで初期化に失敗した場合は例外をスローする。
@@ -82,9 +91,13 @@ class LiteRtLmEngine(
      * @param modelPath .litertlm モデルファイルの絶対パス
      */
     suspend fun initialize(modelPath: String) {
+        currentModelPath = modelPath
+        gpuInitSucceeded = false
+        engineHandle?.close()
         val handle = try {
             val h = gpuEngineFactory(modelPath)
             Log.i(TAG, "GPU バックエンドで初期化成功")
+            gpuInitSucceeded = true
             h
         } catch (gpuException: Exception) {
             Log.w(TAG, "GPU 初期化失敗。CPU フォールバックを試みます: ${gpuException.message}")
@@ -117,19 +130,46 @@ class LiteRtLmEngine(
      * @throws IllegalStateException initialize() が呼ばれていないか、release() 後に呼ばれた場合
      */
     fun infer(imagePath: String, prompt: String): Flow<String> {
-        val engine = checkNotNull(engineHandle) {
+        checkNotNull(engineHandle) {
             "エンジンが初期化されていません。infer() の前に initialize() を呼び出してください。"
         }
         return flow {
             // LiteRT-LM の Conversation は 1 回の推論ごとに新規生成・廃棄する必要がある。
             // 同じ Conversation を再利用すると内部ネイティブポインタが無効化され SIGSEGV を引き起こす。
-            val conversation = engine.createConversation()
+            val handle = checkNotNull(engineHandle) { "engineHandle が null" }
+            val conversation = handle.createConversation()
+            var conversationClosed = false
             try {
                 conversation.sendMessageAsync(imagePath, prompt).collect { token ->
                     emit(token)
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // GPU 推論失敗: CPU フォールバックへ切り替えて同一リクエストを再試行する
+                if (gpuInitSucceeded && currentModelPath != null) {
+                    Log.w(TAG, "GPU 推論失敗（${e.message}）。CPU フォールバックへ切り替えます")
+                    gpuInitSucceeded = false
+                    conversation.close()
+                    conversationClosed = true
+                    handle.close()
+                    val cpuHandle = cpuEngineFactory(requireNotNull(currentModelPath))
+                    engineHandle = cpuHandle
+                    Log.i(TAG, "CPU バックエンドで再初期化成功（推論時フォールバック）")
+                    val retryConversation = cpuHandle.createConversation()
+                    try {
+                        retryConversation.sendMessageAsync(imagePath, prompt).collect { token ->
+                            emit(token)
+                        }
+                        Log.d(TAG, "CPU フォールバック推論完了")
+                    } finally {
+                        retryConversation.close()
+                    }
+                } else {
+                    throw e
+                }
             } finally {
-                conversation.close()
+                if (!conversationClosed) conversation.close()
                 Log.d(TAG, "Conversation を廃棄しました")
             }
         }
